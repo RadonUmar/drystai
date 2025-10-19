@@ -9,6 +9,7 @@
     "lint": "./node_modules/.bin/next lint"
   },
   "dependencies": {
+    "@fetchai/ai-engine-sdk": "^0.1.0",
     "@google/generative-ai": "^0.24.1",
     "@vladmandic/face-api": "^1.7.15",
     "mongodb": "^6.20.0",

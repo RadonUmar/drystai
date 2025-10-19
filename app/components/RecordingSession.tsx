@@ -4,6 +4,7 @@ import { useState, useRef } from 'react';
 import Camera from './Camera';
 import LiveTranscription from './LiveTranscription';
 import PersonRecognitionDisplay from './PersonRecognitionDisplay';
+import PersonSummary from './PersonSummary';
 
 interface ScreenshotResult {
   success: boolean;
@@ -26,14 +27,27 @@ export default function RecordingSession() {
     matchConfidence?: number;
   } | null>(null);
   const [showRecognitionDisplay, setShowRecognitionDisplay] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const currentTranscriptRef = useRef<string>("");
   const currentScreenshotPath = useRef<string>("");
   const onSpacePressRef = useRef<((isCurrentlyRecording: boolean) => void) | null>(null);
 
   const handleSpacePress = async (captureScreenshot: () => Promise<ScreenshotResult | null>) => {
     if (!isRecording) {
-      // START recording
+      // START recording - Show processing immediately
       console.log('Starting recording session...');
+      setIsProcessing(true);
+
+      // Start recording and transcription immediately for better UX
+      setIsRecording(true);
+      currentTranscriptRef.current = "";
+
+      // Notify transcription to start right away
+      if (onSpacePressRef.current) {
+        onSpacePressRef.current(false);
+      }
+
+      // Process screenshot in background
       const result = await captureScreenshot();
 
       // Store person info and screenshot path from the result
@@ -72,43 +86,84 @@ export default function RecordingSession() {
         console.log('⚠️ No result from screenshot capture');
       }
 
-      setIsRecording(true);
-      currentTranscriptRef.current = ""; // Clear transcript for new session
-
-      // Notify transcription to start
-      if (onSpacePressRef.current) {
-        onSpacePressRef.current(false); // false = was not recording, now starting
-      }
+      setIsProcessing(false);
     } else {
-      // STOP recording
+      // STOP recording - Make it instant
       console.log('Stopping recording session...');
-      await captureScreenshot();
+
+      // Stop UI immediately for instant feedback
+      setIsRecording(false);
+      setSessionCount(prev => prev + 1);
+      setShowRecognitionDisplay(false);
 
       // Notify transcription to stop and save (with personId)
       if (onSpacePressRef.current) {
         onSpacePressRef.current(true); // true = was recording, now stopping
       }
 
-      setIsRecording(false);
-      setSessionCount(prev => prev + 1);
-
-      // Hide the recognition display when session ends
-      setShowRecognitionDisplay(false);
-
-      // Clear person info for next session
+      // Clear person info immediately
       setCurrentPerson(null);
       currentScreenshotPath.current = "";
+
+      // Take screenshot in background (non-blocking)
+      captureScreenshot().catch(err => {
+        console.error('Error capturing final screenshot:', err);
+      });
     }
   };
 
   return (
     <div className="relative w-full h-full">
-      {/* Person Recognition Display - Overlay */}
+      {/* Processing Animation - Shows while analyzing face */}
+      {isProcessing && (
+        <div className="fixed top-6 right-6 z-50 w-96 animate-slide-in">
+          <div className="bg-black/40 backdrop-blur-xl rounded-3xl shadow-2xl border border-blue-400/50 overflow-hidden glow-primary">
+            <div className="p-8">
+              <div className="flex flex-col items-center justify-center space-y-4">
+                {/* Scanning animation */}
+                <div className="relative">
+                  <div className="w-24 h-24 rounded-full border-4 border-blue-400/20"></div>
+                  <div className="absolute inset-0 w-24 h-24 rounded-full border-4 border-transparent border-t-blue-400 animate-spin"></div>
+                  <div className="absolute inset-2 w-20 h-20 rounded-full border-4 border-transparent border-t-purple-400 animate-spin" style={{animationDirection: 'reverse', animationDuration: '1.5s'}}></div>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <svg className="w-10 h-10 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Text */}
+                <div className="text-center">
+                  <p className="text-lg font-bold text-white mb-1">Analyzing Face</p>
+                  <p className="text-sm text-gray-200">AI processing...</p>
+                </div>
+
+                {/* Progress dots */}
+                <div className="flex gap-2">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
+                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" style={{animationDelay: '0.4s'}}></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Person Recognition Display - Right Side Overlay */}
       <PersonRecognitionDisplay
         personId={currentPerson?.personId || null}
         personName={currentPerson?.personName || null}
         isNewPerson={currentPerson?.isNewPerson || false}
         matchConfidence={currentPerson?.matchConfidence}
+        show={showRecognitionDisplay}
+      />
+
+      {/* Person Summary - Left Side Overlay */}
+      <PersonSummary
+        personId={currentPerson?.personId || null}
+        personName={currentPerson?.personName || null}
         show={showRecognitionDisplay}
       />
 
