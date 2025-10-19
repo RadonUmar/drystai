@@ -2,6 +2,10 @@
 
 > **Never forget a face or conversation again.**
 
+![DrystAI Demo](public/demo.png)
+
+*Live camera feed with AI-powered facial recognition, real-time transcription, and AR-style overlays*
+
 ## The Problem
 
 You meet someone at a conference. They remember you perfectly. You remember... nothing. 
